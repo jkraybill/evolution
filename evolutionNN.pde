@@ -18,6 +18,9 @@ static final int SCREEN_WIDTH = 800;
 
 static final int GRID_UNIT = 3;
 
+/** If true, when looking at resource views, seeds will automatically be planted at the richest resource site. Dramatically accelerates colonization but may not be desirable for modes like islands. */
+boolean SPOTLIGHT_COLONIZATION = false;
+
 static final int GRID_WIDTH = 800;
 static final int GRID_HEIGHT = 270;
 
@@ -101,6 +104,9 @@ void keyPressed() {
   } else if (key == 'e') { // show effects of battle and sharing
     showEffects = !showEffects;
     println((!showEffects ? "not " : "") + "showing effects");
+  } else if (key == 'c') { // toggle spotlight colonization
+    SPOTLIGHT_COLONIZATION = !SPOTLIGHT_COLONIZATION;
+    println("spotlight colonization " + (!SPOTLIGHT_COLONIZATION ? "off" : "on"));
   } else if (key == 'p') { // pause
     paused = !paused;
   }
@@ -1773,13 +1779,7 @@ void populateMap(float[][][] grid, Being[][] beingGrid, float pctPopulate, int m
           currentSpeciesPopulation = 0;
           usedSpecies++;
         }
-        Being b = new Being(null, currentSeedSpecies, currentSeedSpecies.primaryFood, x, y);
-        // first generation gets free energy.
-        b.storage[ENERGY] = b.storageCapacities[ENERGY];
-        if (!speciesList.contains(currentSeedSpecies)) {
-          speciesList.add(currentSeedSpecies);
-        }
-        beingGrid[x][y] = b;
+        genesis(currentSeedSpecies, x, y);
         currentSpeciesPopulation++;
         if (usedSpecies >= maxSpecies) {
           return;
@@ -1787,6 +1787,16 @@ void populateMap(float[][][] grid, Being[][] beingGrid, float pctPopulate, int m
       }
     }
   }
+}
+
+private void genesis(Species currentSeedSpecies, int x, int y) {
+  Being b = new Being(null, currentSeedSpecies, currentSeedSpecies.primaryFood, x, y);
+  // first generation gets free energy.
+  b.storage[ENERGY] = b.storageCapacities[ENERGY];
+  if (!speciesList.contains(currentSeedSpecies)) {
+    speciesList.add(currentSeedSpecies);
+  }
+  beingGrid[x][y] = b;
 }
 
 private Species speciate(int generation, int food) {
@@ -2008,6 +2018,11 @@ void draw() {
   msTimings[timeInd++] += (System.currentTimeMillis() - startTime);
   startTime = System.currentTimeMillis();
   
+  int seedResource = -1;
+  float maxSeedResource = 0;
+  int seedX = -1;
+  int seedY = -1;
+  
   for (int x = 0; x < GRID_WIDTH; x++) {
     for (int y = 0; y < GRID_HEIGHT; y++) {
       color col = color(0, 0, 0);
@@ -2046,23 +2061,35 @@ void draw() {
           float here = 0;
           for (int i = 0; i < NUM_CHEMS - 1; i++) {
             here += grid[x][y][i];
-            if (here > minResource) {
+            if (here < minResource) {
               minResource = here;
             } else if (here > maxResource) {
               maxResource = here;
             }
+            if (SPOTLIGHT_COLONIZATION && grid[x][y][i] > maxSeedResource) {
+              maxSeedResource = here;
+              seedResource = i;
+              seedX = x;
+              seedY = y;
+            }
           }
-          float hereVal = map(here, 0.00000001, maxResource, 0, 255);
+          float hereVal = map(here, minResource + 0.00000001, maxResource, 0, 255);
           col = color(hereVal, hereVal, hereVal);
         } else if (viewMode > 1) { // specific substance BG
           // going to find other colors, based on substance.
           float here = grid[x][y][viewMode - 2];
-            if (here > minResource) {
+            if (here < minResource) {
               minResource = here;
             } else if (here > maxResource) {
               maxResource = here;
             }
-          float hereVal = (constrain(here, 0, maxResource) / maxResource) * 255;
+            if (SPOTLIGHT_COLONIZATION && here > maxSeedResource) {
+              maxSeedResource = here;
+              seedResource = (viewMode - 2);
+              seedX = x;
+              seedY = y;
+            }
+          float hereVal = (constrain(here, minResource, maxResource) / (maxResource - minResource)) * 255;
           col = color(hereVal, hereVal, hereVal);
         }
       } else { // show being
@@ -2084,6 +2111,10 @@ void draw() {
         }
       }
     }
+  }
+  
+  if (SPOTLIGHT_COLONIZATION && seedResource != -1 && beingGrid[seedX][seedY] == null) { // plant a seed at the top resource spot.
+    genesis(speciate(speciesId++, seedResource), seedX, seedY);
   }
 
   msTimings[timeInd++] += (System.currentTimeMillis() - startTime);
