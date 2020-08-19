@@ -1866,6 +1866,8 @@ float map(float val, float from, float to, float mapFrom, float mapTo, boolean c
 void mouseClicked() {
   if (mouseButton == LEFT) {
     viewMode = (viewMode + 1) % (1 + NUM_CHEMS);
+    minResource = CPS;
+    maxResource = 0;
     println("CLICK " + viewMode);
   }
   if (mouseButton == RIGHT) {
@@ -1880,6 +1882,9 @@ float leftLimit = 0;
 float rightLimit = 400;
 
 long[] msTimings = new long[20];
+
+float minResource = CPS;
+float maxResource = 0;
 
 void draw() {
   it++;
@@ -2041,13 +2046,23 @@ void draw() {
           float here = 0;
           for (int i = 0; i < NUM_CHEMS - 1; i++) {
             here += grid[x][y][i];
+            if (here > minResource) {
+              minResource = here;
+            } else if (here > maxResource) {
+              maxResource = here;
+            }
           }
-          float hereVal = map(here, 0.00000001, CPS * 4, 0, 255);
+          float hereVal = map(here, 0.00000001, maxResource, 0, 255);
           col = color(hereVal, hereVal, hereVal);
         } else if (viewMode > 1) { // specific substance BG
           // going to find other colors, based on substance.
           float here = grid[x][y][viewMode - 2];
-          float hereVal = (constrain(here, 0, CPS) / CPS) * 255;
+            if (here > minResource) {
+              minResource = here;
+            } else if (here > maxResource) {
+              maxResource = here;
+            }
+          float hereVal = (constrain(here, 0, maxResource) / maxResource) * 255;
           col = color(hereVal, hereVal, hereVal);
         }
       } else { // show being
