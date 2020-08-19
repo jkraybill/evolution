@@ -12,7 +12,7 @@ static final boolean LONG_WALK_MODE = false;
 static final float LONG_WALK_QTY = 0.5;
 
 // total capacity per square. if a square has more than this much stuff in it, it distributes stuff to surrounding squares.
-static final float CPS = 120;
+static final float CPS = 40;
 
 static final int SCREEN_WIDTH = 800;
 
@@ -34,7 +34,6 @@ static final int AIR = 3;
 static final int ENERGY = 4; // always the last index
 
 static final String[] SUBSTANCE_LABELS = new String[] { "Food", "Waste", "Gas", "Air", "Energy" };
-float[] subMax = new float[NUM_CHEMS];
 int nextMaxUpdate = 0;
 
 final List<Substance> substanceList = new ArrayList<Substance>();
@@ -392,25 +391,20 @@ class Being {
   }
 
   public void think(float[][][] grid, Being[][] beingGrid) {
-    boolean log = random(0, 1) > 0.99999;
-
     moved = true;
     int inputLayerIndex = 0;
     for (int i = 0; i < inputModules.size(); i++) {
       float input = inputModules.get(i).getInput(this, grid, beingGrid);
-      if (log) println("i" + i + ": " + input);
       if (listener != null) {
         listener.input(input);
       }
       for (int j = 0; j < outputModules.size(); j++) {
         hiddenLayer[j] += input * inputWeights[inputLayerIndex];
-        if (log) println("hl" + j + ": " + hiddenLayer[j]);
         inputLayerIndex++;
       }
     }
     for (int j = 0; j < outputModules.size(); j++) {
       hiddenLayer[j] = (float) Math.tanh(hiddenLayer[j] + inputBiases[j]);
-      if (log) println("hlth" + j + ": " + hiddenLayer[j]);
       if (listener != null) {
         listener.hidden(hiddenLayer[j]);
       }
@@ -419,31 +413,25 @@ class Being {
     int hiddenLayerIndex = 0;
     for (int i = 0; i < outputModules.size(); i++) {
       float input = hiddenLayer[i];
-      if (log) println("i2" + i + ": " + input);
       for (int j = 0; j < outputModules.size(); j++) {
         hiddenLayer2[j] += input * outputWeights[hiddenLayerIndex];
-        if (log) println("hl2" + j + ": " + hiddenLayer2[j]);
         hiddenLayerIndex++;
       }
     }
     for (int j = 0; j < outputModules.size(); j++) {
       hiddenLayer2[j] = (float) Math.tanh(hiddenLayer2[j]  + outputBiases[j]);
-      if (log) println("hlth2" + j + ": " + hiddenLayer2[j]);
     }
 
     int outputLayerIndex = 0;
     for (int i = 0; i < outputModules.size(); i++) {
       float input = hiddenLayer2[i];
-      if (log) println("hl2i" + i + ": " + hiddenLayer2[i]);
       for (int j = 0; j < outputModules.size(); j++) {
         outputLayer[j] += input * outputWeights2[outputLayerIndex];
         outputLayerIndex++;
-        if (log) println("ol" + i + ": " + outputLayer[j]);
       }
     }
     for (int j = 0; j < outputModules.size(); j++) {
       outputLayer[j] = (float) Math.tanh(outputLayer[j]  + outputBiases2[j]);
-      if (log) println("olth" + j + ": " + outputLayer[j]);
       if (listener != null) {
         listener.output(outputLayer[j]);
       }
@@ -894,7 +882,7 @@ class HealthSensor extends BaseModule implements InputModule {
   }
 
   public float getInput(Being me, float[][][]grid, Being[][] beingGrid) {
-    return map(me.hp, 0, me.maxHp, -1, 1, true);
+    return map(me.hp, 0, me.maxHp + 0.00000001, -1, 1, true);
   }
 }
 
@@ -1357,7 +1345,7 @@ class ReplicateModule extends BaseModule implements BinaryOutputModule, InputMod
   }
 }
 
-class HealthModule extends BaseModule {
+class HealthModule extends BaseModule implements InherentModule {
   final float hp;
 
   public HealthModule(float hp) {
@@ -1772,7 +1760,7 @@ void populateMap(float[][][] grid, Being[][] beingGrid, float pctPopulate, int m
             } else {
               nx = 0;
             }
-            grid[x][y][c] = nx * 10; // how much of each chemical there is initially.
+            grid[x][y][c] = nx * 4; // how much of each chemical there is initially.
           }
         }
       }
@@ -1891,7 +1879,7 @@ float walkSpeed = 0.01; // pixels per iteration
 float leftLimit = 0;
 float rightLimit = 400;
 
-long[] msTimings = new long[10];
+long[] msTimings = new long[20];
 
 void draw() {
   it++;
@@ -1959,21 +1947,10 @@ void draw() {
   msTimings[timeInd++] += (System.currentTimeMillis() - startTime);
   startTime = System.currentTimeMillis();
   
-  nextMaxUpdate--;
   if (((injectionRate < -0.0000001 || injectionRate > 0.0000001) && nextMaxUpdate % 20 == 0) || LONG_WALK_MODE || nextMaxUpdate <= 0) { // go through the entire grid
-    if (nextMaxUpdate <= 0) {
-      subMax = new float[NUM_CHEMS];
-    }
     for (int x = 0; x < GRID_WIDTH; x++) {
       for (int y = 0; y < GRID_HEIGHT; y++) {
         // do stuff
-        if (nextMaxUpdate <= 0) {
-          for (int zzz = 0; zzz < NUM_CHEMS; zzz++) {
-            if (grid[x][y][zzz] > subMax[zzz]) {
-              subMax[zzz] = grid[x][y][zzz];
-            }
-          }
-        }
 
         if (LONG_WALK_MODE) { // dynamic undulation mode
           float leftside = leftLimit % GRID_WIDTH;
@@ -2017,15 +1994,8 @@ void draw() {
     return;
   }
 
-  float maxSubstance = (viewMode > 1) ? subMax[viewMode - 2] : 0;
-  float allMaxes = 0;
-  float topMax = 0;
-  for (int zzz = 0; zzz < NUM_CHEMS; zzz++) {
-    allMaxes += subMax[zzz];
-    if (subMax[zzz] > topMax) {
-      topMax = subMax[zzz];
-    }
-    if (substanceCensus) {
+  if (substanceCensus) {
+    for (int zzz = 0; zzz < NUM_CHEMS; zzz++) {
       substanceList.get(zzz).population = 0;
     }
   }
@@ -2035,12 +2005,12 @@ void draw() {
   
   for (int x = 0; x < GRID_WIDTH; x++) {
     for (int y = 0; y < GRID_HEIGHT; y++) {
+      color col = color(0, 0, 0);
       if (substanceCensus) {
         for (int c = 0; c < NUM_CHEMS; c++) {
           substanceList.get(c).population += grid[x][y][c];
         }
       }
-      color col = color(0, 0, 0);
       Being beingToRender = null;
 
       // show foreground
@@ -2072,12 +2042,12 @@ void draw() {
           for (int i = 0; i < NUM_CHEMS - 1; i++) {
             here += grid[x][y][i];
           }
-          float hereVal = map(here, 0.00000001, topMax, 0, 255);
+          float hereVal = map(here, 0.00000001, CPS * 4, 0, 255);
           col = color(hereVal, hereVal, hereVal);
         } else if (viewMode > 1) { // specific substance BG
           // going to find other colors, based on substance.
           float here = grid[x][y][viewMode - 2];
-          float hereVal = constrain(here, 0, maxSubstance) / maxSubstance * 255;
+          float hereVal = (constrain(here, 0, CPS) / CPS) * 255;
           col = color(hereVal, hereVal, hereVal);
         }
       } else { // show being
@@ -2110,8 +2080,8 @@ void draw() {
     }
   }
 
+  msTimings[timeInd++] += (System.currentTimeMillis() - startTime);
   updatePixels();
-
   msTimings[timeInd++] += (System.currentTimeMillis() - startTime);
   startTime = System.currentTimeMillis();
   
@@ -2131,6 +2101,9 @@ void draw() {
     populateFood = -1;
   }
 
+  msTimings[timeInd++] += (System.currentTimeMillis() - startTime);
+  startTime = System.currentTimeMillis();
+
   // could be used for meters of species??
   Collections.sort(speciesList);
 
@@ -2146,13 +2119,19 @@ void draw() {
     }
   }
 
+  msTimings[timeInd++] += (System.currentTimeMillis() - startTime);
+  startTime = System.currentTimeMillis();
+
   for (int f = 0; f < extantFood.length; f++) {
     if (extantFood[f] < 2) { // create new species of this food when we're the only species left.
-      for (int i = 0; i < 2000; i++) {
+      for (int i = 0; i < 200; i++) {
         populateMap(grid, beingGrid, 0.99, 1, true, false, f);
       }
     }
   }  
+
+  msTimings[timeInd++] += (System.currentTimeMillis() - startTime);
+  startTime = System.currentTimeMillis();
 
   while (meterPos <= (7 * GRID_UNIT)) {
     drawMeter("", ((meterWidth + meterPadding) * meterPos) + meterPadding, meterPadding, meterWidth, 0, 0, 1, color(255, 204, 0), #00AA00, color(255, 204, 0));
@@ -2215,13 +2194,15 @@ void draw() {
 
   msTimings[timeInd++] += (System.currentTimeMillis() - startTime);
   startTime = System.currentTimeMillis();
-  for (int i = 0; i < timeInd; i++) {
-    if (msTimings[i] > 0) {
-      println("Timing " + i + ": " + msTimings[i]);
+  if (it % 1000 == 0) {
+    for (int i = 0; i < timeInd; i++) {
+      if (msTimings[i] > 0) {
+        println("Timing " + i + ": " + msTimings[i]);
+      }
     }
   }
   
-  println(frameRate);
+  //println(frameRate);
 }
 
 void mousePressed() {
@@ -2256,20 +2237,14 @@ public static float[][][] tripleCopy(float[][][] src) {
  */
 void addToGrid(int x, int y, int substance, float qty) {
   grid[x][y][substance] += qty;
-  float totalGridQty = 0;
-  for (int i = 0; i < NUM_CHEMS - 1; i++) {
-    totalGridQty += grid[x][y][i];
-  }
 
-  if (totalGridQty > CPS) { // redistribute
-    float redistPortion = (totalGridQty - CPS) / totalGridQty;
+  if (grid[x][y][substance] > CPS) { // redistribute
+    float redistPortion = (grid[x][y][substance] - CPS) / grid[x][y][substance];
     for (int i = Math.max(0, x - 1); i <= Math.min(x + 1, GRID_WIDTH - 1); i++) {
       for (int j = Math.max(0, y - 1); j <= Math.min(y + 1, GRID_HEIGHT - 1); j++) {
-        for (int s = 0; s < NUM_CHEMS - 1; s++) {
-          float toMove = (redistPortion / 9) * grid[x][y][s];
-          grid[x][y][s] -= toMove;
-          grid[i][j][s] += toMove;
-        }
+        float toMove = (redistPortion / 9) * grid[x][y][substance];
+        grid[x][y][substance] -= toMove;
+        grid[i][j][substance] += toMove;
       }
     }
   }
@@ -2297,14 +2272,13 @@ void drawMeter(String label, int x, int y, int mwidth, float val, String valLabe
 
   float to100 = map(val, minVal, maxVal, 2, 98, true);
 
-  for (int i = 0; i < 100; i++) {
-    if (to100 >= i) { // value present
-      stroke(col);
-    } else { // value not present
-      stroke(#333333);
-    }
-    line(0, 99 - i, mwidth, 99-i);
-  }
+  noStroke();
+  stroke(#333333);
+  fill(#333333);
+  rect(0, 0, mwidth, 98 - to100);
+  stroke(col);
+  fill(col);
+  rect(0, 99-to100, mwidth, to100);
 
   textFont(f2);
 
