@@ -28,4 +28,12 @@ Commands:\
 **a**: speciate a bunch of air eating beings\
 **p**: pause\
 **space**: fast-forward 100 iterations\
-**c**: "spotlight colonization": each iteration, a single seed species will be placed on the highest value unconsumed resource. The seed species will have the same diet as the resource type. When in resource view, the highest value square of any resource will be seeded; when in a specific food view mode, only that food will be considered. Life view (with no visible resources) will not fire spotlight colonization.
+**c**: toggle resource colonization mode: when on, each iteration, a single seed species will be placed on the highest value visible resource square. The seed species will have the same diet as the resource type. When in resource view, the highest value square of any resource will be seeded; when in a specific food view mode, only that food will be considered. Life view (with no visible resources) will not fire spotlight colonization.
+
+## Events
+
+When event visibility is **on**, you will see events as they occur.
+
+**Green**: a being shared food with another being of its species.\
+**Yellow**: a being shared energy with another being of its species.\
+**Red**: a being attacked another being.
