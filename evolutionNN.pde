@@ -26,8 +26,8 @@ static final int GRID_HEIGHT = 270;
 
 static final int NUM_CHEMS = 5; // food, waste, gas, air, energy
 
-static final float TARGET_POP_MIN = 5000;
-static final float TARGET_POP_MAX = 10000;
+static final float TARGET_POP_MIN = 10000;
+static final float TARGET_POP_MAX = 20000;
 
 // indices of elements
 static final int FOOD = 0;
@@ -166,6 +166,7 @@ class Being {
 
   public float hp = 0; // health
   public float maxHp = 0; // max health
+  public float lastDamage = 0; // damage taken last turn
 
   public float shields = 0; // shields
 
@@ -177,7 +178,7 @@ class Being {
 
   // major mutation rate
   // TODO: make this modularized!
-  public float majorMutation = 0.001;
+  public float majorMutation = 0.003;
 
   // location
   public int x;
@@ -204,7 +205,7 @@ class Being {
       speciated = true;
       //TODO: make this modular
 
-      int modChoice = randInt(0, 19);
+      int modChoice = randInt(0, 21);
       int newFood = primaryFood;
 
       if (modChoice == 0) {
@@ -263,6 +264,10 @@ class Being {
         newModules.add(new AdjacentAllySensor());
       } else if (modChoice == 18) {
         newModules.add(new AdjacentEnemySensor());
+      } else if (modChoice == 19) {
+        newModules.add(new PainSensor());
+      } else if (modChoice == 20) {
+        newModules.add(new FoodStorageSensor());
       } else {
         newModules.add(new SubstanceSensor());
       }
@@ -278,15 +283,6 @@ class Being {
           }
         }
       }
-      /* DEFUNCT MODULES:
-       newModules.add(new DisperseModule(random(spec.generation / 50f)));
-       } else if (modChoice == 13) {
-       //newModules.add(new AsexualReproductionModule(0.1 + random(spec.generation / 20f)));
-       } else if (modChoice == 14) {
-       //newModules.add(new SuffocateModule(randInt(1, Math.max(1, Math.min(spec.generation / 7, 7))), random(1 - (spec.generation / 50f), 2 - (spec.generation / 50f))));
-       } else if (modChoice == 15) {
-       //newModules.add(new LifeExpectancyModule(1, random(birthModules.size())));
-       */
 
       Integer speciesCount = genesToCounts.get(newModules.size());
       if (speciesCount == null) {
@@ -367,9 +363,9 @@ class Being {
       }
     }
 
-    if (!speciated) {      
+    if (!speciated) {
       // perturb a few W&B
-      final float SM_PERTURB = random(0, 0.01);
+      final float SM_PERTURB = random(0, 0.1);
       for (int i = 0; i < this.species.adaptability; i++) {
         inputWeights[randInt(0, inputWeights.length - 1)] += normal(0, SM_PERTURB);
         inputBiases[randInt(0, inputBiases.length - 1)] += normal(0, SM_PERTURB);
@@ -444,6 +440,7 @@ class Being {
   }
 
   public void executeLifecycle(float[][][] grid, Being[][] beingGrid) {
+    lastDamage = ((lastDamage + 1) / 2) - 1; // reduce back to -1 over some turns (pain memory)
     if (!moved) { // I haven't moved yet.
       int outputModuleIndex = 0;
 
@@ -556,6 +553,7 @@ class Being {
     }
     float actualDamage = Math.max(0, Math.min(this.hp, hp));
     this.hp -= actualDamage;
+    this.lastDamage += actualDamage;
     if (this.hp <= 0) {
       this.die(grid, bg);
     }
@@ -868,6 +866,17 @@ class StorageLevelSensor extends BaseModule implements InputModule {
 
   public float getInput(Being me, float[][][]grid, Being[][] beingGrid) {
     return map(me.storage[substance], 0, Math.max(me.storageCapacities[substance], 0.01), -1, 1, true);
+  }
+}
+
+class PainSensor extends BaseModule implements InputModule {
+
+  public PainSensor() {
+    super("OW", "Pain Sensor", "Returns how much damage we took last turn");
+  }
+
+  public float getInput(Being me, float[][][]grid, Being[][] beingGrid) {
+    return map(me.lastDamage, 0, me.maxHp, -1, 1, true);
   }
 }
 
@@ -1370,14 +1379,18 @@ class AsexualReproductionModule extends BaseModule implements BinaryOutputModule
   private final float hpToGive; // fixed number
   private final float resourcesToGive; // 0-1
 
-  public AsexualReproductionModule(float chance, int maxAttempts, float hpToGive, float resourceShare) {
+  private AsexualReproductionModule(float chance, int maxAttempts, float hpToGive, float resourceShare) {
     super("Kid", "Asexual Reproduction " + df2.format(chance) + " / " + maxAttempts + " / " + hpToGive + " / " + df0.format(resourceShare * 100) + "%", "Reproduces asexually if all genes are replicated. Costs 1 energy (exertion) plus half remaining store of all substances (to offspring).");
     this.fertility = chance;
     this.maxAttempts = maxAttempts;
     this.hpToGive = hpToGive;
     this.resourcesToGive = resourceShare;
   }
-
+  
+  public AsexualReproductionModule() {
+    this(randnorm(0.1, 0.5), randInt(1, 5), randnorm(1, 10), randnorm(0, 1));
+  }
+  
   public float getInput(Being me, float[][][]grid, Being[][] beingGrid) {
     return map(me.offspringAttempts, 0, maxAttempts, -1, 1, true);
   }
@@ -1416,7 +1429,6 @@ class AsexualReproductionModule extends BaseModule implements BinaryOutputModule
 
       if (me.offspringAttempts >= maxAttempts) { // too old, lose half max HP
         me.takeDamage(null, me.maxHp / 2, grid, beingGrid);
-        //me.die(grid, beingGrid);
       }
       if (beingGrid[destX][destY] == null && me.hp > hpToGive) { // empty, can reproduce.
         me.takeDamage(null, hpToGive, grid, beingGrid);
@@ -1436,7 +1448,7 @@ class AsexualReproductionModule extends BaseModule implements BinaryOutputModule
   }
 
   public Module mutate(Being me) {
-    return new AsexualReproductionModule(random(fertility * 0.8, fertility * 1.2), maxAttempts + randInt(-1, 1), hpToGive * random(0.8, 1.2), Math.min(resourcesToGive * random(0.8, 1.2), 1));
+    return new AsexualReproductionModule();
   }
 }
 
@@ -1611,20 +1623,24 @@ class AttackModule extends BaseModule implements BinaryOutputModule {
 
 class RegenModule extends BaseModule implements BinaryOutputModule {
   private final float regen;
+  private final float conversionRate;
 
-  public RegenModule(float regen) {
+  private RegenModule(float regen, float conversionRate) {
     super("RG", "Regen " + df1.format(regen) + "HP", "Regenerates " + df1.format(regen) + "HP by burning " + df1.format(regen) + "energy.");
     this.regen = regen;
+    this.conversionRate = conversionRate;
   }
 
   public RegenModule() {
-    this(random(0.1, 3));
+    this(randnorm(0.1, 2), randnorm(1, 2));
   }
 
   public boolean utility(Being me, float[][][] grid, Being[][] beingGrid) {
-    if (me.maxHp - me.hp >= regen && me.storage[ENERGY] >= regen) {
+    if (me.maxHp - me.hp >= regen && me.storage[ENERGY] >= regen * conversionRate) {
       me.hp += regen;
-      me.store(ENERGY, -regen);
+      me.store(ENERGY, -regen * conversionRate);
+    } else { // penalty for trying to regen when we can't
+      me.takeDamage(null, regen * 0.1, grid, beingGrid);
     }
 
     return true;
@@ -1811,26 +1827,11 @@ private Species speciate(int generation, int food) {
   allModules.add(new StorageModule(ENERGY, normal(4, 1)));
   allModules.add(new StorageModule(food, normal(4, 1)));
   allModules.add(new ReplicateModule());
-  allModules.add(new AsexualReproductionModule(random(0.1, 0.5), randInt(1, 10), randInt(1, 5), random(0, 1)));
-  // was 1,8 for first suffocate range; this needs some work.
+  allModules.add(new AsexualReproductionModule());
   allModules.add(new SuffocateModule());
   allModules.add(new RegenModule());
   allModules.add(new HealthModule(normal(5, 1)));
-
-  //allModules.add(new AdjacentAllySensor());
-  //allModules.add(new AdjacentEnemySensor());
-  //allModules.add(new AttackModule(random(0.1, 1), randInt(1, 5)));
-
-  //int popsensors = randInt(0,1);
-  //for (int i = 0; i < popsensors; i++) {
-  //  allModules.add(new PopulationSensor(random(-1, 1), random(-1, 1), randInt(1, 20), randInt(0, 1) == 0 ? -1 : food));
-  //}
-  //int subsensors = randInt(0,2);
-  //for (int i = 0; i < subsensors; i++) {
-  //  allModules.add(new PrimaryFoodSensor());
-  //}
   allModules.add(new StorageLevelSensor(ENERGY));
-  allModules.add(new FoodStorageSensor());
   allModules.add(new HealthSensor());
 
   if (random(1) > 0.5) {
