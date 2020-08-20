@@ -26,8 +26,8 @@ static final int GRID_HEIGHT = 270;
 
 static final int NUM_CHEMS = 5; // food, waste, gas, air, energy
 
-static final float TARGET_POP_MIN = 10000;
-static final float TARGET_POP_MAX = 20000;
+static final float TARGET_POP_MIN = 5000;
+static final float TARGET_POP_MAX = 10000;
 
 // indices of elements
 static final int FOOD = 0;
@@ -1517,8 +1517,10 @@ class SuffocateModule extends BaseModule implements InherentModule {
   }
   
   public SuffocateModule() {
-    this(Math.max(1, Math.min(5, normal(3, 0.5))), random(1, 5));
-}
+    // high dispersal mode:
+    this(3, 10);
+    //this(Math.max(1, Math.min(5, normal(3, 0.5))), random(1, 5));
+  }
 
   public boolean suffocate(Being me, float[][][] grid, Being[][] beingGrid) {
     int startX = constrain(me.x - 1, 0, beingGrid.length - 1);
@@ -1734,7 +1736,7 @@ private List<Species> seedSpeciesList = new ArrayList<Species>();
 
 private boolean shouldPopulate(int x, int y) {
   // landmasses (increase the / number to have larger continents, > number to have less land)
-  return noise((float) x / 71, (float) y / 71) > 0.45;
+  return noise((float) x / 71, (float) y / 71) > 0.41;
   // cubes, evenly spaced
   //return (x / 40) % 2 == 0 && (y / 40) % 2 == 0;
   // spaced cubes, vertical bridges
@@ -1917,8 +1919,12 @@ void draw() {
       injectionRate -= 0.001;
     }
   }
-  if (globalPopulation.population >= TARGET_POP_MAX && globalPopulation.population > lastGlobalPopulation) { // allow negative injection
-    injectionRate = Math.min(Math.max(-0.1, injectionRate), 0.1);
+  if (globalPopulation.population >= TARGET_POP_MAX) { // above the max; shrink the resource pool.
+    if (globalPopulation.population > lastGlobalPopulation) { // full negative injection
+      injectionRate = Math.max(-0.1, injectionRate);
+    } else { // population is shrinking; still reduce but a a lower rate.
+      injectionRate = Math.max(-0.01, injectionRate);
+    }
   } else { // no negative injection
     injectionRate = Math.min(Math.max(0, injectionRate), 0.1);
   }
@@ -1994,7 +2000,7 @@ void draw() {
         } else { // "normal" fixed/injection mode
           if (injectionRate < 0) { // suck the life out across the board.
             if (shouldPopulate(x, y)) { // slight suck
-              grid[x][y][toInject] = Math.max(0, grid[x][y][toInject] - (injectionRate * 20));
+              grid[x][y][toInject] = Math.max(0, grid[x][y][toInject] + (injectionRate * 20));
             } else { // "sea", big suck
               grid[x][y][toInject] = Math.max(0, grid[x][y][toInject] * (0.9));
             }
