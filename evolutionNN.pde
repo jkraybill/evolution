@@ -177,7 +177,7 @@ class Being {
 
   // major mutation rate
   // TODO: make this modularized!
-  public float majorMutation = 0.05;
+  public float majorMutation = 0.001;
 
   // location
   public int x;
@@ -494,7 +494,7 @@ class Being {
         Module mod = activeModules.get(i);
         mod.absorb(this, grid, beingGrid);
         if (move) {
-          move = mod.move(this, grid, beingGrid);
+          move = mod.move(this, grid, beingGrid, moduleInputs.get(i));
         }
         if (!alive) return;
       }
@@ -767,7 +767,7 @@ interface Module {
   public boolean reproduce(Being me, float[][][] grid, Being[][] beingGrid);
 
   // if returns false, no more modules of this type should be fired.
-  public boolean move(Being me, float[][][] grid, Being[][] beingGrid);
+  public boolean move(Being me, float[][][] grid, Being[][] beingGrid, float input);
 
   // if returns false, no more modules of this type should be fired.
   public boolean attack(Being me, float[][][] grid, Being[][] beingGrid);
@@ -833,7 +833,7 @@ class BaseModule implements Module {
   public boolean reproduce(Being me, float[][][] grid, Being[][] beingGrid) {
     return true;
   }
-  public boolean move(Being me, float[][][] grid, Being[][] beingGrid) {
+  public boolean move(Being me, float[][][] grid, Being[][] beingGrid, float input) {
     return true;
   }
   public boolean attack(Being me, float[][][] grid, Being[][] beingGrid) {
@@ -1448,11 +1448,11 @@ public MoveModule newMoveModule() {
     xOff = randInt(-1, 1);
     yOff = randInt(-1, 1);
   }
-  ret = new MoveModule(xOff, yOff, random(0.01, 0.25), random(0.25, 2));
+  ret = new MoveModule(xOff, yOff, random(0.01, 0.25), random(0.5, 2));
   return ret;
 }
 
-class MoveModule extends BaseModule implements BinaryOutputModule {
+class MoveModule extends BaseModule implements DataOutputModule {
   private final float xOffset;
   private final float yOffset;
   private final float moveChance;
@@ -1467,19 +1467,20 @@ class MoveModule extends BaseModule implements BinaryOutputModule {
     this.unitCost = unitCost;
   }
 
-  public boolean move(Being me, float[][][] grid, Being[][] beingGrid) {
-    if (random(1) > moveChance || me.storage[ENERGY] < unitCost) return true;
+  public boolean move(Being me, float[][][] grid, Being[][] beingGrid, float input) {
+    if ((input > -0.5 && input < 0.5) || random(1) > moveChance || me.storage[ENERGY] < unitCost) return true;
 
     int tgtX = 0;
     int tgtY = 0;
+    int multiplier = (input > 0.5) ? 1 : -1;
     float actualCost = 0;
     if (random(1) <= Math.abs(xOffset)) { // move in that dir
-      tgtX = Math.round(xOffset);
-      actualCost += (tgtX * unitCost);
+      tgtX = Math.round(xOffset * multiplier);
+      actualCost += (Math.abs(tgtX) * unitCost);
     }
     if (random(1) <= Math.abs(yOffset)) { // move in that dir
-      tgtY = Math.round(yOffset);
-      actualCost += (tgtY * unitCost);
+      tgtY = Math.round(yOffset * multiplier);
+      actualCost += (Math.abs(tgtY) * unitCost);
     }
 
     int destX = (me.x + tgtX + beingGrid.length) % (beingGrid.length);
