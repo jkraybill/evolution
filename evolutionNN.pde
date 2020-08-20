@@ -12,22 +12,22 @@ static final boolean LONG_WALK_MODE = false;
 static final float LONG_WALK_QTY = 0.5;
 
 // total capacity per square. if a square has more than this much stuff in it, it distributes stuff to surrounding squares.
-static final float CPS = 40;
+static final float CPS = 120;
 
 static final int SCREEN_WIDTH = 800;
 
 static final int GRID_UNIT = 3;
 
 /** If true, when looking at resource views, seeds will automatically be planted at the richest resource site. Dramatically accelerates colonization but may not be desirable for modes like islands. */
-boolean SPOTLIGHT_COLONIZATION = false;
+boolean RESOURCE_COLONIZATION = false;
 
 static final int GRID_WIDTH = 800;
 static final int GRID_HEIGHT = 270;
 
 static final int NUM_CHEMS = 5; // food, waste, gas, air, energy
 
-static final float TARGET_POP_MIN = 5000;
-static final float TARGET_POP_MAX = 9000;
+static final float TARGET_POP_MIN = 10000;
+static final float TARGET_POP_MAX = 20000;
 
 // indices of elements
 static final int FOOD = 0;
@@ -37,8 +37,6 @@ static final int AIR = 3;
 static final int ENERGY = 4; // always the last index
 
 static final String[] SUBSTANCE_LABELS = new String[] { "Food", "Waste", "Gas", "Air", "Energy" };
-int nextMaxUpdate = 0;
-
 final List<Substance> substanceList = new ArrayList<Substance>();
 
 static final int GRID_FOOTER = 750;
@@ -65,6 +63,7 @@ PFont f3;
 private static SecureRandom r = new SecureRandom();
 
 public Species globalPopulation = new Species(null, 0, 0, "Global");
+int lastGlobalPopulation = 0;
 
 public float substanceMin = Float.MAX_VALUE;
 public float substanceMax = Float.MIN_VALUE;
@@ -104,9 +103,9 @@ void keyPressed() {
   } else if (key == 'e') { // show effects of battle and sharing
     showEffects = !showEffects;
     println((!showEffects ? "not " : "") + "showing effects");
-  } else if (key == 'c') { // toggle spotlight colonization
-    SPOTLIGHT_COLONIZATION = !SPOTLIGHT_COLONIZATION;
-    println("spotlight colonization " + (!SPOTLIGHT_COLONIZATION ? "off" : "on"));
+  } else if (key == 'c') { // toggle resource colonization
+    RESOURCE_COLONIZATION = !RESOURCE_COLONIZATION;
+    println("resource colonization " + (!RESOURCE_COLONIZATION ? "off" : "on"));
   } else if (key == 'p') { // pause
     paused = !paused;
   }
@@ -1516,6 +1515,10 @@ class SuffocateModule extends BaseModule implements InherentModule {
     this.dmg = Math.max(0.1, dmg);
     this.maxNeighbors = maxNeighbors;
   }
+  
+  public SuffocateModule() {
+    this(Math.max(1, Math.min(5, normal(3, 0.5))), random(1, 5));
+}
 
   public boolean suffocate(Being me, float[][][] grid, Being[][] beingGrid) {
     int startX = constrain(me.x - 1, 0, beingGrid.length - 1);
@@ -1766,7 +1769,7 @@ void populateMap(float[][][] grid, Being[][] beingGrid, float pctPopulate, int m
             } else {
               nx = 0;
             }
-            grid[x][y][c] = nx * 4; // how much of each chemical there is initially.
+            grid[x][y][c] = nx * 10; // how much of each chemical there is initially.
           }
         }
       }
@@ -1810,7 +1813,7 @@ private Species speciate(int generation, int food) {
   allModules.add(new ReplicateModule());
   allModules.add(new AsexualReproductionModule(random(0.1, 0.5), randInt(1, 10), randInt(1, 5), random(0, 1)));
   // was 1,8 for first suffocate range; this needs some work.
-  allModules.add(new SuffocateModule(normal(5, 0.5), normal(2, 0.5)));
+  allModules.add(new SuffocateModule());
   allModules.add(new RegenModule());
   allModules.add(new HealthModule(normal(5, 1)));
 
@@ -1893,7 +1896,7 @@ float rightLimit = 400;
 
 long[] msTimings = new long[20];
 
-float minResource = CPS;
+float minResource = Float.MAX_VALUE;
 float maxResource = 0;
 
 void draw() {
@@ -1907,12 +1910,20 @@ void draw() {
   if (globalPopulation.population >= TARGET_POP_MIN) { // we're at target pop; slow down injection
     injectionRate -= 0.001;
   } else { // increase injection
-    injectionRate += 0.001;
+    // we're below target; increase injection unless population is increasing
+    if (globalPopulation.population < lastGlobalPopulation) {
+      injectionRate += 0.001;
+    } else {
+      injectionRate -= 0.001;
+    }
   }
-  if (globalPopulation.population >= TARGET_POP_MAX) { // allow negative injection
-    injectionRate = Math.min(Math.max(-0.01, injectionRate), 0.01);
+  if (globalPopulation.population >= TARGET_POP_MAX && globalPopulation.population > lastGlobalPopulation) { // allow negative injection
+    injectionRate = Math.min(Math.max(-0.1, injectionRate), 0.1);
   } else { // no negative injection
-    injectionRate = Math.min(Math.max(0, injectionRate), 0.01);
+    injectionRate = Math.min(Math.max(0, injectionRate), 0.1);
+  }
+  if (it % 50 == 0) { // census time
+    lastGlobalPopulation = globalPopulation.population;
   }
   int toInject = randInt(0, NUM_CHEMS - 2);
   iterations[toInject]++;
@@ -1927,6 +1938,11 @@ void draw() {
   List<Being> allValues = new ArrayList<Being>(beingMap.values());
   ExecutorService newFixedThreadPool = Executors.newFixedThreadPool(8);
   for (final Being being : allValues) {
+    if (listener == null || !listener.observed.alive || !listener.observed.species.equals(speciesList.get(0))) { // find a new being to observe
+      if (being.species.equals(speciesList.get(0))) {
+        listener = new Listener(being);
+      }
+    }
     newFixedThreadPool.execute(new Runnable() {
       public void run() {
         being.think(grid, beingGrid);
@@ -1943,12 +1959,6 @@ void draw() {
   startTime = System.currentTimeMillis();
   
   for (Being being : allValues) {
-    //println("Running " + being.id);
-    if (listener == null || !listener.observed.alive || !listener.observed.species.equals(speciesList.get(0))) { // find a new being to observe
-      if (being.species.equals(speciesList.get(0))) {
-        listener = new Listener(being);
-      }
-    }
     //println(System.currentTimeMillis() + " Executing at " + x + ", " + y);
     //println(beingGrid[x][y].debugStatus());
     being.moved = false; // reset action for next time.
@@ -1962,7 +1972,7 @@ void draw() {
   msTimings[timeInd++] += (System.currentTimeMillis() - startTime);
   startTime = System.currentTimeMillis();
   
-  if (((injectionRate < -0.0000001 || injectionRate > 0.0000001) && nextMaxUpdate % 20 == 0) || LONG_WALK_MODE || nextMaxUpdate <= 0) { // go through the entire grid
+  if (((injectionRate < -0.0000001 || injectionRate > 0.0000001) && it % 20 == 0) || LONG_WALK_MODE) { // go through the entire grid
     for (int x = 0; x < GRID_WIDTH; x++) {
       for (int y = 0; y < GRID_HEIGHT; y++) {
         // do stuff
@@ -1984,18 +1994,15 @@ void draw() {
         } else { // "normal" fixed/injection mode
           if (injectionRate < 0) { // suck the life out across the board.
             if (shouldPopulate(x, y)) { // slight suck
-              grid[x][y][toInject] = Math.max(0, grid[x][y][toInject] * (1 + (injectionRate * 20)));
+              grid[x][y][toInject] = Math.max(0, grid[x][y][toInject] - (injectionRate * 20));
             } else { // "sea", big suck
-              grid[x][y][toInject] = Math.max(0, grid[x][y][toInject] * (0.75));
+              grid[x][y][toInject] = Math.max(0, grid[x][y][toInject] * (0.9));
             }
           } else if (injectionRate > 0 && shouldPopulate(x, y)) {
             grid[x][y][toInject] = grid[x][y][toInject] + (injectionRate * 20 * noise(((float) x/20)+noiseSeed, ((float) y/20)+noiseSeed, ((float) toInject * 7)+noiseSeed));
           }
         }
       }
-    }
-    if (nextMaxUpdate <= 0) {
-      nextMaxUpdate = 5000;
     }
   }
 
@@ -2061,35 +2068,37 @@ void draw() {
           float here = 0;
           for (int i = 0; i < NUM_CHEMS - 1; i++) {
             here += grid[x][y][i];
-            if (here < minResource) {
-              minResource = here;
-            } else if (here > maxResource) {
-              maxResource = here;
-            }
-            if (SPOTLIGHT_COLONIZATION && grid[x][y][i] > maxSeedResource) {
+            if (RESOURCE_COLONIZATION && grid[x][y][i] > maxSeedResource) {
               maxSeedResource = here;
               seedResource = i;
               seedX = x;
               seedY = y;
             }
           }
-          float hereVal = map(here, minResource + 0.00000001, maxResource, 0, 255);
+          if (here < minResource && here > 0.001) {
+            minResource = here;
+          } else if (here > maxResource) {
+            maxResource = here;
+          }
+          float hereVal = constrain(here, 0, maxResource) / maxResource * 255;
           col = color(hereVal, hereVal, hereVal);
         } else if (viewMode > 1) { // specific substance BG
           // going to find other colors, based on substance.
           float here = grid[x][y][viewMode - 2];
-            if (here < minResource) {
-              minResource = here;
-            } else if (here > maxResource) {
-              maxResource = here;
-            }
-            if (SPOTLIGHT_COLONIZATION && here > maxSeedResource) {
-              maxSeedResource = here;
-              seedResource = (viewMode - 2);
-              seedX = x;
-              seedY = y;
-            }
-          float hereVal = (constrain(here, minResource, maxResource) / (maxResource - minResource)) * 255;
+          if (here < minResource && here > 0.001) {
+            minResource = here;
+          } else if (here > maxResource) {
+            maxResource = Math.min(CPS, here);
+            //println("max " + maxResource + ", min " + minResource);
+          }
+          if (RESOURCE_COLONIZATION && here > maxSeedResource) {
+            maxSeedResource = here;
+            seedResource = (viewMode - 2);
+            seedX = x;
+            seedY = y;
+          }
+          float hereVal = constrain(here, 0, maxResource) / maxResource * 255;
+          //println(here + " mapped to " + hereVal + " against max " + maxResource);
           col = color(hereVal, hereVal, hereVal);
         }
       } else { // show being
@@ -2113,7 +2122,7 @@ void draw() {
     }
   }
   
-  if (SPOTLIGHT_COLONIZATION && seedResource != -1 && beingGrid[seedX][seedY] == null) { // plant a seed at the top resource spot.
+  if (RESOURCE_COLONIZATION && seedResource != -1 && beingGrid[seedX][seedY] == null) { // plant a seed at the top resource spot.
     genesis(speciate(speciesId++, seedResource), seedX, seedY);
   }
 
@@ -2285,12 +2294,14 @@ void addToGrid(int x, int y, int substance, float qty) {
   grid[x][y][substance] += qty;
 
   if (grid[x][y][substance] > CPS) { // redistribute
-    float redistPortion = (grid[x][y][substance] - CPS) / grid[x][y][substance];
-    for (int i = Math.max(0, x - 1); i <= Math.min(x + 1, GRID_WIDTH - 1); i++) {
-      for (int j = Math.max(0, y - 1); j <= Math.min(y + 1, GRID_HEIGHT - 1); j++) {
-        float toMove = (redistPortion / 9) * grid[x][y][substance];
+    float redistPortion = 1f;
+    float toMove = (redistPortion / 9f) * grid[x][y][substance];
+    for (int i = -1; i <= 1; i++) {
+      for (int j = -1; j <= 1; j++) {
         grid[x][y][substance] -= toMove;
-        grid[i][j][substance] += toMove;
+        int toX = (x + i + GRID_WIDTH) % GRID_WIDTH;
+        int toY = (y + j + GRID_HEIGHT) % GRID_HEIGHT;
+        grid[toX][toY][substance] += toMove;
       }
     }
   }
