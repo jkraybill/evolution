@@ -1414,8 +1414,8 @@ class AsexualReproductionModule extends BaseModule implements BinaryOutputModule
         }
       }
 
-      if (me.offspringAttempts >= maxAttempts) { // too old, lose half HP
-        me.takeDamage(null, me.hp / 2, grid, beingGrid);
+      if (me.offspringAttempts >= maxAttempts) { // too old, lose half max HP
+        me.takeDamage(null, me.maxHp / 2, grid, beingGrid);
         //me.die(grid, beingGrid);
       }
       if (beingGrid[destX][destY] == null && me.hp > hpToGive) { // empty, can reproduce.
