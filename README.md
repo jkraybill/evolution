@@ -1,6 +1,6 @@
 # evolution
 
-The greatest cellular automata ever created.
+The greatest cellular automata game ever created.
 
 ## Premise
 
@@ -19,13 +19,13 @@ When a being reproduces, there is a chance it will mutate into a new species. Ne
 The world settings govern how the world works, and how species evolve.
 
 Commands:
-*left-click*: change view mode (life / resources / food / waste / gas / air)
-*right-click*: change view mode for beings only (visible / monochrome / invisible)
-*e*: toggle visibility of events
-*f*: speciate a bunch of food eating beings
-*w*: speciate a bunch of waste eating beings
-*g*: speciate a bunch of gas eating beings
-*a*: speciate a bunch of air eating beings
-*p*: pause
-*space*: fast-forward 100 iterations
-*c*: "spotlight colonization": each iteration, a single seed species will be placed on the highest value unconsumed resource. The seed species will have the same diet as the resource type. When in resource view, the highest value square of any resource will be seeded; when in a specific food view mode, only that food will be considered. Life view (with no visible resources) will not fire spotlight colonization.
+**left-click**: change view mode (life / resources / food / waste / gas / air)
+**right-click**: change view mode for beings only (visible / monochrome / invisible)
+**e**: toggle visibility of events
+**f**: speciate a bunch of food eating beings
+**w**: speciate a bunch of waste eating beings
+**g**: speciate a bunch of gas eating beings
+**a**: speciate a bunch of air eating beings
+**p**: pause
+**space**: fast-forward 100 iterations
+**c**: "spotlight colonization": each iteration, a single seed species will be placed on the highest value unconsumed resource. The seed species will have the same diet as the resource type. When in resource view, the highest value square of any resource will be seeded; when in a specific food view mode, only that food will be considered. Life view (with no visible resources) will not fire spotlight colonization.
