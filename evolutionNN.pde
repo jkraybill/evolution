@@ -1448,7 +1448,7 @@ public MoveModule newMoveModule() {
     xOff = randInt(-1, 1);
     yOff = randInt(-1, 1);
   }
-  ret = new MoveModule(xOff, yOff, random(0.01, 0.25), random(0.5, 2));
+  ret = new MoveModule(xOff, yOff, random(0.01, 0.25), random(0.2, 1));
   return ret;
 }
 
@@ -1519,7 +1519,9 @@ class SuffocateModule extends BaseModule implements InherentModule {
   
   public SuffocateModule() {
     // high dispersal mode:
-    this(3, 10);
+    //this(3, 10);
+    // diverse dispersal:
+    this(randnorm(1,5), randnorm(3,6));
     //this(Math.max(1, Math.min(5, normal(3, 0.5))), random(1, 5));
   }
 
@@ -1549,12 +1551,7 @@ class SuffocateModule extends BaseModule implements InherentModule {
   }
 
   public Module mutate(Being me) {
-    return this;
-    /* previous, but led to mutation to basically never suffocating:
-     int modNeighbors = randInt(-1, 1);
-     float dmgMult = random(0.95,1.1);
-     return new SuffocateModule(Math.max(1, maxNeighbors + modNeighbors), dmg * dmgMult);
-     */
+    return new SuffocateModule();
   }
 }
 
@@ -2361,6 +2358,13 @@ void drawMeter(String label, int x, int y, int mwidth, float val, String valLabe
 
 private float normal(float mean, float sdev) {
   return (randomGaussian() * sdev) + mean;
+}
+
+/**
+ * Returns a random number between the min and max (inclusive), with a normal distribution and min/max at 3 sdevs.
+ */
+float randnorm(float min, float max) {
+  return Math.min(max, Math.max(min, normal((max + min) / 2, (max - min) / 6)));
 }
 
 /**
