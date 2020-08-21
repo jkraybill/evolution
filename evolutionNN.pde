@@ -337,7 +337,7 @@ class Being {
     outputWeights2 = new float[outputModules.size() * outputModules.size()];
     outputBiases2 = new float[outputModules.size()];
 
-    if (parent != null && parent.inputWeights.length <= inputWeights.length && parent.outputWeights2.length <= outputWeights2.length) { // have parent; use parent values as long as our genome has not shrunk
+    if (parent != null && parent.inputWeights.length == inputWeights.length && parent.outputWeights2.length == outputWeights2.length) { // have parent; use parent values as long as our genome has not shrunk
       arrayCopy(parent.outputWeights2, outputWeights2);
       arrayCopy(parent.outputBiases2, outputBiases2);
       arrayCopy(parent.outputWeights, outputWeights);
@@ -1388,7 +1388,7 @@ class AsexualReproductionModule extends BaseModule implements BinaryOutputModule
   }
   
   public AsexualReproductionModule() {
-    this(randnorm(0.1, 0.5), randInt(1, 5), randnorm(1, 10), randnorm(0, 1));
+    this(randnorm(0.1, 0.5), Math.round(randnorm(2, 4)), randnorm(1, 10), randnorm(0, 1));
   }
   
   public float getInput(Being me, float[][][]grid, Being[][] beingGrid) {
@@ -1427,8 +1427,8 @@ class AsexualReproductionModule extends BaseModule implements BinaryOutputModule
         }
       }
 
-      if (me.offspringAttempts >= maxAttempts) { // too old, lose half max HP
-        me.takeDamage(null, me.maxHp / 2, grid, beingGrid);
+      if (me.offspringAttempts >= maxAttempts) { // too old, lose 75% max HP
+        me.takeDamage(null, me.maxHp * 0.75, grid, beingGrid);
       }
       if (beingGrid[destX][destY] == null && me.hp > hpToGive) { // empty, can reproduce.
         me.takeDamage(null, hpToGive, grid, beingGrid);
@@ -1460,7 +1460,7 @@ public MoveModule newMoveModule() {
     xOff = randInt(-1, 1);
     yOff = randInt(-1, 1);
   }
-  ret = new MoveModule(xOff, yOff, random(0.01, 0.25), random(0.2, 1));
+  ret = new MoveModule(xOff, yOff, randnorm(0.01, 0.5), randnorm(0.1, 0.8));
   return ret;
 }
 
@@ -1533,7 +1533,7 @@ class SuffocateModule extends BaseModule implements InherentModule {
     // high dispersal mode:
     //this(3, 10);
     // diverse dispersal:
-    this(randnorm(1,5), randnorm(3,6));
+    this(randnorm(1,7), randnorm(2,6));
     //this(Math.max(1, Math.min(5, normal(3, 0.5))), random(1, 5));
   }
 
@@ -1752,11 +1752,11 @@ private boolean shouldPopulate(int x, int y) {
   // landmasses (increase the / number to have larger continents, > number to have less land)
   return noise((float) x / 71, (float) y / 71) > 0.41;
   // cubes, evenly spaced
-  //return (x / 40) % 2 == 0 && (y / 40) % 2 == 0;
+  //return (x / 80) % 2 == 0 && (y / 40) % 2 == 0;
   // spaced cubes, vertical bridges
   //return ((x / 45) % 3 != 1 && (y / 45) % 2 != 0) || ((x/8) % 12 == 1);
   // cubes, 1/3 spaced
-  //return (x / 30) % 3 != 1 && (y / 30) % 3 != 1;
+  //return (x / 80) % 3 != 1 && (y / 80) % 3 != 1;
   // checkerboard
   //return (x / 25) % 2 == (y / 25) % 2;
   // checkerboard with diagonal gaps
@@ -2001,7 +2001,7 @@ void draw() {
             if (shouldPopulate(x, y)) { // slight suck
               grid[x][y][toInject] = Math.max(0, grid[x][y][toInject] + (injectionRate * 20));
             } else { // "sea", big suck
-              grid[x][y][toInject] = Math.max(0, grid[x][y][toInject] * (0.9));
+              grid[x][y][toInject] = Math.max(0, grid[x][y][toInject] * (injectionRate * 200));
             }
           } else if (injectionRate > 0 && shouldPopulate(x, y)) {
             grid[x][y][toInject] = grid[x][y][toInject] + (injectionRate * 20 * noise(((float) x/20)+noiseSeed, ((float) y/20)+noiseSeed, ((float) toInject * 7)+noiseSeed));
