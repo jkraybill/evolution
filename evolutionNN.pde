@@ -178,7 +178,7 @@ class Being {
 
   // major mutation rate
   // TODO: make this modularized!
-  public float majorMutation = 0.003;
+  public float majorMutation = 0.008;
 
   // location
   public int x;
