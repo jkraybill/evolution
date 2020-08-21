@@ -26,8 +26,8 @@ static final int GRID_HEIGHT = 270;
 
 static final int NUM_CHEMS = 5; // food, waste, gas, air, energy
 
-static final float TARGET_POP_MIN = 10000;
-static final float TARGET_POP_MAX = 20000;
+static final float TARGET_POP_MIN = 18000;
+static final float TARGET_POP_MAX = 24000;
 
 // indices of elements
 static final int FOOD = 0;
