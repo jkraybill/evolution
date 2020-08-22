@@ -7,6 +7,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+/** How much energy is one food worth? */
+static final float F_TO_E = 500;
+
 // resource mode where resources move around and are not injected/dejected, they just move with fixed amounts
 static final boolean LONG_WALK_MODE = false;
 static final float LONG_WALK_QTY = 0.5;
@@ -26,8 +29,8 @@ static final int GRID_HEIGHT = 270;
 
 static final int NUM_CHEMS = 5; // food, waste, gas, air, energy
 
-static final float TARGET_POP_MIN = 18000;
-static final float TARGET_POP_MAX = 24000;
+static final float TARGET_POP_MIN = 7000;
+static final float TARGET_POP_MAX = 9000;
 
 // indices of elements
 static final int FOOD = 0;
@@ -225,8 +228,8 @@ class Being {
             newModules.remove(i);
           }
         }
-        newModules.add(new FoodDigestModule(newFood, random(0.5, 3), random(0.99, 1.01), 0));
-        newModules.add(new StorageModule(newFood, random(1, 8)));
+        newModules.add(new FoodDigestModule(newFood, randnorm(0.5, 3), randnorm(0.99, 1.01), 0));
+        newModules.add(new StorageModule(newFood, randnorm(1, 8)));
       } else if (modChoice == 1) {
         newModules.add(new PrimaryFoodSensor());
       } else if (modChoice == 2) {
@@ -237,7 +240,7 @@ class Being {
         // previously, seemed to work but was a bit stifling to speciation in tight situations :newModules.add(new AttackModule(random(0.1, 1), randInt(1, 2)));
         newModules.add(new AttackModule(normal(0.6, 0.1), normal(0.6, 0.1)));
       } else if (modChoice == 5) {
-        newModules.add(new StorageModule(ENERGY, random(1, 4)));
+        newModules.add(new StorageModule(ENERGY, randnorm(F_TO_E * 0.5, F_TO_E * 1.5)));
       } else if (modChoice == 6) {
         newModules.add(new StorageModule(newFood, random(1, 4)));
       } else if (modChoice == 7) {
@@ -348,18 +351,18 @@ class Being {
 
     if (parent == null || speciated) { // set some defaults, or perturb majorly
       for (int i = 0; i < inputWeights.length; i++) {
-        inputWeights[i] += normal(0, 2);
+        inputWeights[i] += randnorm(-2, 2);
       }
 
       for (int i = 0; i < outputWeights.length; i++) {
-        outputWeights[i] += normal(0, 2);
-        outputWeights2[i] += normal(0, 2);
+        outputWeights[i] += randnorm(-2, 2);
+        outputWeights2[i] += randnorm(-2, 2);
       }
 
       for (int i = 0; i < inputBiases.length; i++) {
-        inputBiases[i] += normal(0, 2);
-        outputBiases[i] += normal(0, 2);
-        outputBiases2[i] += normal(0, 2);
+        inputBiases[i] += randnorm(-1, 1);
+        outputBiases[i] += randnorm(-1, 1);
+        outputBiases2[i] += randnorm(-1, 1);
       }
     }
 
@@ -882,7 +885,7 @@ class PainSensor extends BaseModule implements InputModule {
 
 class FoodStorageSensor extends StorageLevelSensor {
   public FoodStorageSensor() {
-    super(ENERGY, "FSS", "Primary Food Storage Sensor", "Returns the current % primary food level.");
+    super(ENERGY, "FSS", "Primary Food Storage Sensor (" , "Returns the current % primary food level.");
   }
 
   public void postBirth(Being me) {
@@ -901,7 +904,7 @@ class HealthSensor extends BaseModule implements InputModule {
 }
 
 class SubstanceSensor extends BaseModule implements InputModule {
-  public final static int MAX_RANGE = 8;
+  public final static int MAX_RANGE = 20;
   final float xStep;
   final float yStep;
   final int radius;
@@ -920,7 +923,7 @@ class SubstanceSensor extends BaseModule implements InputModule {
   }
 
   public SubstanceSensor(int food) {
-    this(random(-1, 1), random(-1, 1), randInt(1, MAX_RANGE), food);
+    this(random(-1, 1), random(-1, 1), Math.round(randnorm(1, MAX_RANGE)), food);
   }
 
   public SubstanceSensor() {
@@ -958,8 +961,9 @@ class SubstanceSensor extends BaseModule implements InputModule {
     float ret;
     if (left + right == 0 || (left < currentLevel && right < currentLevel)) {
       ret = 0;
+    } else {
+      ret = (left - right) / (left + right);
     }
-    ret = (left - right) / (left + right);
     return ret;
   }
 
@@ -971,7 +975,7 @@ class SubstanceSensor extends BaseModule implements InputModule {
 class PrimaryFoodSensor extends SubstanceSensor {
 
   public PrimaryFoodSensor() {
-    this(Math.round(random(-1.49, 1.49)), Math.round(random(-1.49, 1.49)), randInt(1, SubstanceSensor.MAX_RANGE));
+    this(Math.round(random(-1.49, 1.49)), Math.round(random(-1.49, 1.49)), Math.round(randnorm(1, SubstanceSensor.MAX_RANGE)));
   }
 
   public PrimaryFoodSensor(float xStep, float yStep, int radius) {
@@ -1253,7 +1257,7 @@ class FoodDigestModule extends BaseDigestModule implements InherentModule {
     this.intakes[this.primaryInput] += scalingFactor;
     this.storageCapacities[this.primaryInput] += storage;
     this.inputs[this.primaryInput] += scalingFactor;
-    this.outputs[ENERGY] += (12 * scalingFactor);
+    this.outputs[ENERGY] += (F_TO_E * scalingFactor);
     this.gridOutputs[(this.primaryInput + 1) % (NUM_CHEMS - 1)] += (scalingFactor * excretionRate);
   }
 
@@ -1454,12 +1458,9 @@ class AsexualReproductionModule extends BaseModule implements BinaryOutputModule
 
 public MoveModule newMoveModule() {
   MoveModule ret;
-  int xOff = randInt(-1, 1);
-  int yOff = randInt(-1, 1);
-  while (xOff == 0 && yOff == 0) {
-    xOff = randInt(-1, 1);
-    yOff = randInt(-1, 1);
-  }
+  boolean up = (random(1) > 0.5);
+  int xOff = !up ? 1 : 0;
+  int yOff = up ? 1 : 0;
   ret = new MoveModule(xOff, yOff, randnorm(0.01, 0.5), randnorm(0.1, 0.8));
   return ret;
 }
@@ -1750,9 +1751,11 @@ private List<Species> seedSpeciesList = new ArrayList<Species>();
 
 private boolean shouldPopulate(int x, int y) {
   // landmasses (increase the / number to have larger continents, > number to have less land)
-  return noise((float) x / 71, (float) y / 71) > 0.41;
+  //return noise((float) x / 71, (float) y / 71) > 0.41;
+  // migrating dots (trying to encourage movement and detction)
+  //return noise(x, y, ((float) it) / 1000) > 0.81;
   // cubes, evenly spaced
-  //return (x / 80) % 2 == 0 && (y / 40) % 2 == 0;
+  return (x / 40) % 2 == 0 && (y / 40) % 2 == 0;
   // spaced cubes, vertical bridges
   //return ((x / 45) % 3 != 1 && (y / 45) % 2 != 0) || ((x/8) % 12 == 1);
   // cubes, 1/3 spaced
@@ -1791,7 +1794,7 @@ void populateMap(float[][][] grid, Being[][] beingGrid, float pctPopulate, int m
       }
       //println("SETUP2 " + noise((float) x, (float) y));
 
-      if (random(1) > pctPopulate && beingGrid[x][y] == null) {
+      if (shouldPopulate(x,y) && random(1) > pctPopulate && beingGrid[x][y] == null) {
         //println("Adding at " + x + ", " + y);
         if (currentSpeciesPopulation > INITIAL_POPULATIONS) {
           currentSeedSpecies = speciate(speciesId++, food);
@@ -1824,7 +1827,7 @@ private Species speciate(int generation, int food) {
   List<Module> allModules = new ArrayList<Module>();
   allModules.add(new FoodDigestModule(food, random(0.5, 3), random(0.99, 1.01), 0));
   allModules.add(new RespirationModule(random(0.8, 1), random(0.5, 2)));
-  allModules.add(new StorageModule(ENERGY, normal(4, 1)));
+  allModules.add(new StorageModule(ENERGY, randnorm(F_TO_E * 0.5, F_TO_E * 1.5)));
   allModules.add(new StorageModule(food, normal(4, 1)));
   allModules.add(new ReplicateModule());
   allModules.add(new AsexualReproductionModule());
@@ -1833,6 +1836,12 @@ private Species speciate(int generation, int food) {
   allModules.add(new HealthModule(normal(5, 1)));
   allModules.add(new StorageLevelSensor(ENERGY));
   allModules.add(new HealthSensor());
+  if (randInt(1,10) > 8) {
+    allModules.add(new PrimaryFoodSensor());
+  }
+  if (randInt(1,10) > 8) {
+    allModules.add(new SubstanceSensor());
+  }
 
   if (random(1) > 0.5) {
     allModules.add(newMoveModule());
@@ -2296,17 +2305,19 @@ public static float[][][] tripleCopy(float[][][] src) {
  * Use this method when adding stuff to a grid square.
  */
 void addToGrid(int x, int y, int substance, float qty) {
-  grid[x][y][substance] += qty;
-
-  if (grid[x][y][substance] > CPS) { // redistribute
-    float redistPortion = 1f;
-    float toMove = (redistPortion / 9f) * grid[x][y][substance];
-    for (int i = -1; i <= 1; i++) {
-      for (int j = -1; j <= 1; j++) {
-        grid[x][y][substance] -= toMove;
-        int toX = (x + i + GRID_WIDTH) % GRID_WIDTH;
-        int toY = (y + j + GRID_HEIGHT) % GRID_HEIGHT;
-        grid[toX][toY][substance] += toMove;
+  if (shouldPopulate(x,y)) {
+    grid[x][y][substance] += qty;
+  
+    if (grid[x][y][substance] > CPS) { // redistribute
+      float redistPortion = 1f;
+      float toMove = (redistPortion / 9f) * grid[x][y][substance];
+      for (int i = -1; i <= 1; i++) {
+        for (int j = -1; j <= 1; j++) {
+          grid[x][y][substance] -= toMove;
+          int toX = (x + i + GRID_WIDTH) % GRID_WIDTH;
+          int toY = (y + j + GRID_HEIGHT) % GRID_HEIGHT;
+          grid[toX][toY][substance] += toMove;
+        }
       }
     }
   }
